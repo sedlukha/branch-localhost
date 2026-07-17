@@ -57,12 +57,14 @@ the computed env vars. Exit code and signals are forwarded.
 | `--env-url-slash <NAME>` | `string` | no | — | Set `NAME=http://<host>:<port>/`. Repeatable. |
 | `--env-port <NAME>` | `string` | no | — | Set `NAME=<port>`. Repeatable. |
 | `--env-host <NAME>` | `string` | no | — | Set `NAME=<host>`. Repeatable. |
+| `--write-env <path>` | `string` | no | — | Also write the `--env-*` vars into the env file at `<path>` (upsert). |
 | `--show` | `boolean` | no | `false` | Print URL to stdout and exit. Skips port probing. Implies `--quiet`. |
 | `--quiet` | `boolean` | no | `false` | Suppress the "Branch URL" stderr line. |
 | `-h`, `--help` | `boolean` | no | — | Show help |
 | `-v`, `--version` | `boolean` | no | — | Show version |
 
 Always-set env vars (wrapper mode): `DEV_HOST_URL`, `DEV_HOST_PORT`, `DEV_HOST_HOST`.
+These are not written by `--write-env` — only the names you pass to `--env-*` are.
 
 ### Examples
 
@@ -111,6 +113,52 @@ branch-localhost --base-port 4000 --show
 open "$(branch-localhost --base-port 4000 --show)"   # open it in the browser
 ```
 
+## Sharing the URL with another process (`--write-env`)
+
+`--show` recomputes the URL from the branch name. That is fine to open a tab,
+but it returns the **seed** port without probing. If the seed was taken when
+the dev server started, the server moved on and `--show` now points at the
+wrong port — quietly.
+
+So do not guess the port from a second process. Have the dev server record the
+one it actually bound:
+
+```json
+{
+  "scripts": {
+    "dev": "branch-localhost --base-port 4000 --env-port PORT --env-url BASE_URL --write-env .env.local -- next dev"
+  }
+}
+```
+
+`.env.local` then holds the real values, written before the child starts:
+
+```bash
+BASE_URL=http://my-feature.localhost:4123
+PORT=4123
+```
+
+Anything that already reads env files — Playwright, a test runner, a script —
+picks the URL up with no extra wiring:
+
+```ts
+// playwright.config.ts — no port maths, no git, no guessing
+export default defineConfig({ use: { baseURL: process.env.BASE_URL } })
+```
+
+Notes:
+
+- Only the names you passed to `--env-*` are written. `DEV_HOST_*` are not.
+- Other lines are kept: comments, blank lines, ordering, unrelated vars. A
+  commented-out `# FOO=x` is left alone and a real `FOO=` is appended.
+- An unchanged result does not touch the file, so restarting on the same branch
+  will not bust a build cache that hashes `.env*` or trip a file watcher.
+- The write happens before the child spawns, so a watcher (Next.js) does not
+  reload on it.
+- `--show` ignores `--write-env` and says so: it does not probe, so it has no
+  real port to record.
+- Add the target to `.gitignore` — it holds machine-local values.
+
 ## Git worktree workflow
 
 This is where the tool shines. With [git worktrees](https://git-scm.com/docs/git-worktree),
@@ -132,7 +180,9 @@ cd ~/proj/main      && pnpm dev   # → http://master.localhost:4145
 All three run side-by-side. Cookies and localStorage are isolated per
 subdomain. The port is the same every time you start that worktree.
 
-To grab a URL from a script (e.g., to open in browser or paste in Slack):
+To grab a URL from a script (e.g., to open in browser or paste in Slack). This
+is the seed port — if a process needs the port the server really bound, use
+[`--write-env`](#sharing-the-url-with-another-process---write-env) instead:
 
 ```bash
 # from inside any worktree:
@@ -162,7 +212,9 @@ the branch label, so each checked-out commit still gets a stable URL.
 4. If that port is busy, probe successive ports (wrapping inside the range)
    up to `--probe-limit` times. (`--show` skips this — it returns the
    deterministic seed.)
-5. Spawn `<command>` with stdio inherited and the chosen env vars set.
+5. With `--write-env <path>`, upsert the `--env-*` vars into that env file, so
+   the port from step 4 is on record rather than guessed again elsewhere.
+6. Spawn `<command>` with stdio inherited and the chosen env vars set.
 
 ## FAQ
 
