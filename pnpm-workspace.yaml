@@ -11,3 +11,9 @@ supportedArchitectures:
   cpu:
     - arm64
     - x64
+
+# pnpm 11 fails the install on any dependency build script not listed here.
+# esbuild's postinstall only checks its binary, which already comes from the
+# @esbuild/<platform> packages above, so it can stay off.
+allowBuilds:
+  esbuild: false
