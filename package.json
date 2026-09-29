@@ -1,6 +1,6 @@
 {
   "name": "branch-localhost",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Per-branch <branch>.localhost:<port> for local dev — deterministic port per git branch, free-port probing, env injection.",
   "keywords": [
     "dev",
