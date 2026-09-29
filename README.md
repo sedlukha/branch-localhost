@@ -208,10 +208,13 @@ the branch label, so each checked-out commit still gets a stable URL.
    (DNS label limit). Host becomes `<sanitized>.localhost`, or just
    `localhost` if the branch sanitizes to empty.
 3. Hash the sanitized branch (deterministic) → pick a port inside
-   `[base-port, base-port + range)`.
-4. If that port is busy, probe successive ports (wrapping inside the range)
-   up to `--probe-limit` times. (`--show` skips this — it returns the
-   deterministic seed.)
+   `[base-port, base-port + range)`. Ports that browsers block
+   ([Fetch "bad ports"](https://fetch.spec.whatwg.org/#port-blocking), e.g.
+   `5060`/sip, `6000`/x11) are skipped to the next usable one — they'd fail
+   with `ERR_UNSAFE_PORT`, and Next.js refuses to bind them.
+4. If that port is busy, probe successive ports (wrapping inside the range,
+   skipping reserved ones) up to `--probe-limit` times. (`--show` skips this —
+   it returns the deterministic seed.)
 5. With `--write-env <path>`, upsert the `--env-*` vars into that env file, so
    the port from step 4 is on record rather than guessed again elsewhere.
 6. Spawn `<command>` with stdio inherited and the chosen env vars set.
