@@ -2,7 +2,12 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import { computeHost, sanitizeBranch } from "../src/branch.js"
-import { hash32, seedPort } from "../src/port.js"
+import {
+  findFreePort,
+  hash32,
+  isReservedPort,
+  seedPort,
+} from "../src/port.js"
 
 test("sanitizeBranch — lowercases and replaces non-[a-z0-9-]", () => {
   assert.equal(sanitizeBranch("feature/Foo_Bar"), "feature-foo-bar")
@@ -59,4 +64,30 @@ test("seedPort — stable across calls for same input", () => {
 
 test("seedPort — different bases ⇒ different ports for same branch", () => {
   assert.notEqual(seedPort("main", 4000, 1000), seedPort("main", 5000, 1000))
+})
+
+test("isReservedPort — browser-blocked ports", () => {
+  assert.equal(isReservedPort(5060), true)
+  assert.equal(isReservedPort(6000), true)
+  assert.equal(isReservedPort(3000), false)
+})
+
+test("seedPort — skips reserved ports, deterministically", () => {
+  // "feature-209" hashes to 5060 (sip) in [5000, 6000); 5061 is reserved too.
+  assert.equal(5000 + (hash32("feature-209") % 1000), 5060)
+  assert.equal(seedPort("feature-209", 5000, 1000), 5062)
+})
+
+test("seedPort — throws when the whole range is reserved", () => {
+  assert.throws(() => seedPort("any", 5060, 2), /reserved/)
+})
+
+test("findFreePort — skips reserved ports without spending a probe", async () => {
+  const port = await findFreePort({
+    start: 5060,
+    basePort: 5060,
+    range: 3,
+    probeLimit: 0,
+  })
+  assert.equal(port, 5062)
 })

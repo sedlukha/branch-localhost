@@ -10,7 +10,7 @@ import { runCommand } from "./run.js"
 
 export { computeHost, readGitBranch, sanitizeBranch } from "./branch.js"
 export { upsertEnvContent, writeEnvFile } from "./env-file.js"
-export { findFreePort, hash32, seedPort } from "./port.js"
+export { findFreePort, hash32, isReservedPort, seedPort } from "./port.js"
 export { runCommand } from "./run.js"
 
 const DEFAULTS = {
